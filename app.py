@@ -4,6 +4,7 @@
 """
 
 import importlib
+import os
 import io
 from html import escape
 
@@ -186,6 +187,13 @@ def _secrets() -> dict:
 
 SECRETS = _secrets()
 DEPLOYED = bool(SECRETS.get("NAVER_AD_API_KEY"))  # 클라우드에 키가 들어 있으면 '공용 사이트' 모드
+# Streamlit Cloud 서버에서 실행 중인지 (저장소가 /mount/src 아래에 놓인다)
+ON_CLOUD = os.getcwd().startswith("/mount/src") or os.environ.get("HOSTNAME", "") == "streamlit"
+
+if ON_CLOUD and not DEPLOYED:
+    # 공용 서버에서 키 입력 칸을 보여 주면 방문자 누구나 키를 바꾸거나 저장할 수 있어 위험하다 → 막는다
+    st.error("🔧 관리자 설정이 아직 끝나지 않았습니다. (Streamlit 앱 Settings → Secrets 에 키를 넣어 주세요)")
+    st.stop()
 
 if DEPLOYED and SECRETS.get("APP_PASSWORD"):
     if not st.session_state.get("authed"):

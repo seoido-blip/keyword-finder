@@ -163,11 +163,25 @@ MONTH_CFG = {
 
 # ---------------------------------------------------------------- 배포 모드 / 비밀번호
 def _secrets() -> dict:
-    """Streamlit Cloud 의 Secrets(비밀 설정). 내 PC 에서 실행할 때는 비어 있다."""
+    """
+    Streamlit Cloud 의 Secrets(비밀 설정). 내 PC 에서 실행할 때는 비어 있다.
+    .env 파일 내용을 ENV = """ … """ 안에 통째로 붙여넣어도 읽는다.
+    """
     try:
-        return dict(st.secrets)
+        sec = dict(st.secrets)
     except Exception:
         return {}
+    raw = sec.get("ENV")
+    if isinstance(raw, str):
+        for line in raw.splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            k, v = line.split("=", 1)
+            k, v = k.strip(), v.strip().strip('"').strip("'")
+            if v and not sec.get(k):
+                sec[k] = v
+    return sec
 
 
 SECRETS = _secrets()

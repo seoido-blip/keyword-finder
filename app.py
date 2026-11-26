@@ -165,7 +165,7 @@ MONTH_CFG = {
 def _secrets() -> dict:
     """
     Streamlit Cloud 의 Secrets(비밀 설정). 내 PC 에서 실행할 때는 비어 있다.
-    .env 파일 내용을 ENV = """ … """ 안에 통째로 붙여넣어도 읽는다.
+    .env 파일 내용을 ENV 항목(따옴표 세 개로 감싼 여러 줄) 안에 통째로 붙여넣어도 읽는다.
     """
     try:
         sec = dict(st.secrets)

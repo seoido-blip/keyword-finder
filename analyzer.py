@@ -1,24 +1,34 @@
 """
-키워드 수집·분석 로직 (UI와 분리 → CLI/Streamlit 공용)
+분석 로직 (화면과 분리 — app.py / cli.py 가 함께 쓴다)
 
-핵심 지표
-- 월간 검색량     = PC + 모바일 (검색광고 API)
-- 블로그 누적 발행량 = 블로그 검색 결과 총 문서 수
-- 최근 30일 발행량  = 날짜순으로 세어 본 최근 한 달 발행 글 수 (선택)
-- 포화지수(%)     = 최근 30일 발행량 ÷ 월간 검색량 × 100
-                   (30일 발행량을 안 셀 때는 누적 발행량 ÷ 검색량 으로 대신 계산)
-  → 낮을수록 "찾는 사람은 많은데 글은 적은" 좋은 키워드
+이 파일의 구성
+  1) enrich_with_documents  키워드마다 '한 달 기준' 발행량·포화지수를 붙인다
+  2) keyword_detail         키워드 하나의 상세(기본 정보 탭) — 검색량, 월 발행량, 이번 달 예상 검색량
+  3) discover               🏆 황금 키워드 추천 — 연관 키워드 + 2단계 확장 + 비슷한 표현(근처·밥집…)
+  4) discover_region        📍 지역 키워드 — 동네·명소 찾기(블로그 함께 언급으로 검증) + 다른 구·군 비교
+  5) run / expand_keywords  예전 방식(여러 시드 → 연관 키워드 표). cli.py 의 --legacy 에서 사용
+
+핵심 지표 (블랙키위 방식, 모두 '한 달' 기준)
+  월간 검색량  = PC + 모바일 (검색광고 API, 최근 30일)
+  월 블로그 발행 = 최근 30일 새 블로그 글 수 (1,000건 넘으면 발행 속도로 추정 → '추정' 표시)
+  월 카페 발행  = 카페 누적 글 × (블로그 최근 30일 ÷ 블로그 누적)  ※ 카페 검색엔 작성일이 없어 추정
+  포화지수(%)  = 월 발행량 ÷ 월간 검색량 × 100   → 낮을수록 '찾는 사람은 많은데 글은 적은' 좋은 키워드
+  추천점수     = 검색량 점수(50) + 경쟁 점수(50)
 """
 
 from __future__ import annotations
 
+import calendar
+import math
 import time
 from concurrent.futures import ThreadPoolExecutor
+from datetime import date, timedelta
 from typing import Callable
 
 import pandas as pd
 
 from naver_api import OpenApiClient, SearchAdClient
+from region import extract_neighborhoods, keyword_forms, parse_region, region_label, sibling_keywords
 
 
 def grade(saturation: float, recent_mode: bool) -> str:
@@ -154,8 +164,6 @@ def run(
 # ---------------------------------------------------------------------------
 # 단일 키워드 상세 분석 (블랙키위 '기본 정보' 화면)
 # ---------------------------------------------------------------------------
-import calendar
-from datetime import date, timedelta
 
 # 월간 발행량 ÷ 월간 검색량 × 100 기준 포화도 구간
 SAT_LEVELS = [(10, "매우 낮음", "#12b886"), (30, "낮음", "#40c057"), (50, "보통", "#fab005"),
@@ -258,7 +266,6 @@ def keyword_detail(ad: SearchAdClient, api: OpenApiClient, keyword: str) -> dict
 # ---------------------------------------------------------------------------
 # 황금 키워드 자동 추천
 # ---------------------------------------------------------------------------
-import math
 
 
 def _norm(s: str) -> str:
@@ -435,7 +442,6 @@ def discover(
 # ---------------------------------------------------------------------------
 # 지역 키워드: 같은 지역 동네·명소 + 같은 시·도 다른 구·군 비교
 # ---------------------------------------------------------------------------
-from region import extract_neighborhoods, keyword_forms, parse_region, region_label, sibling_keywords
 
 
 def _lookup(ad: SearchAdClient, hints: list[str], rows: dict[str, dict]) -> list[dict]:

@@ -2,3 +2,7 @@
 __pycache__/
 *.pyc
 .streamlit/secrets.toml
+
+# 명령줄로 만든 엑셀 결과
+*_키워드분석.xlsx
+keywords.xlsx

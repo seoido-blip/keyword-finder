@@ -27,6 +27,26 @@ from naver_api import OpenApiClient, SearchAdClient
 
 st.set_page_config(page_title="네이버 키워드 파인더", page_icon="🔑", layout="wide")
 
+# 브라우저 자동 번역(엣지·크롬)이 화면 글자를 바꾸면 'removeChild' 오류가 난다
+# → 페이지가 한국어이고 번역하지 말라고 브라우저에 알린다
+import streamlit.components.v1 as _components
+
+_components.html(
+    """<script>
+    try {
+      const d = window.parent.document;
+      d.documentElement.lang = "ko";
+      d.documentElement.setAttribute("translate", "no");
+      d.documentElement.classList.add("notranslate");
+      if (!d.querySelector('meta[name="google"]')) {
+        const m = d.createElement("meta"); m.name = "google"; m.content = "notranslate";
+        d.head.appendChild(m);
+      }
+    } catch (e) {}
+    </script>""",
+    height=0,
+)
+
 # ---------------------------------------------------------------- 스타일
 st.markdown(
     """

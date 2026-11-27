@@ -195,6 +195,27 @@ def test_scoring():
     assert good > bad and good > tiny
 
 
+def test_storage_rows():
+    import tempfile
+    import config
+    import storage
+    df = pd.DataFrame([{"키워드": "팔공산맛집", "월간 검색량": 1200, "월 전체 발행": 30, "포화지수(%)": 2.5,
+                        "경쟁도": "🟢 매우 낮음", "추천점수": 81, "지역": "대구 동구", "PC 검색량": float("nan")}])
+    rows = storage.rows_from_table("지역 키워드", "팔공산 맛집", df)
+    assert rows[0]["monthly_volume"] == 1200 and rows[0]["score"] == 81 and rows[0]["region"] == "대구 동구"
+    assert rows[0]["data"]["PC 검색량"] is None  # NaN 은 비워서 보낸다
+    assert storage.rows_from_table("황금 키워드", "x", pd.DataFrame()) == []
+    assert storage.save({}, rows) is False  # 주소·키가 없으면 아무것도 안 한다
+    # 화면의 '키 저장'이 .env 의 SUPABASE 줄을 지우면 안 된다
+    with tempfile.TemporaryDirectory() as d:
+        env = os.path.join(d, ".env")
+        with open(env, "w", encoding="utf-8") as f:
+            f.write("NAVER_AD_API_KEY=a\nSUPABASE_URL=https://x.supabase.co\nSUPABASE_KEY=k\n")
+        config.save_env({"NAVER_AD_API_KEY": "b"}, env)
+        v = config.load_env(env)
+        assert v["NAVER_AD_API_KEY"] == "b" and v["SUPABASE_URL"] == "https://x.supabase.co" and v["SUPABASE_KEY"] == "k"
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     failed = 0

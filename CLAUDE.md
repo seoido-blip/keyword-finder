@@ -11,7 +11,11 @@
   - `discover_region`: 지역 키워드
 - `naver_api.py` — `SearchAdClient`(검색광고 keywordstool, HMAC 서명) / `OpenApiClient`(블로그·카페 검색, 검색어 트렌드)
 - `region.py` — 시·도 → 시·군·구 표(2026 기준, 대구 군위군·인천 제물포/영종/검단구 포함), `parse_region`, `extract_neighborhoods`
-- `config.py` — `.env` 읽기/쓰기 (로컬 전용)
+- `config.py` — `.env` 읽기/쓰기 (로컬 전용). `save_env`는 `SUPABASE_*`처럼 화면에서 안 다루는 줄을 지우지 않는다.
+- `storage.py` — 새로 조회한 결과를 Supabase `kw_results` 표에 쌓는다 (`SUPABASE_URL`/`SUPABASE_KEY`가 있을 때만)
+  - 프로젝트: `seoido-blip's Project` (ziltjzkrmltmckeqkohy). 다른 앱 표와 같이 쓰므로 이 앱 표는 `kw_` 로 시작한다.
+  - 공개 키(anon)에는 INSERT만 허용. SELECT·수정·삭제는 막혀 있다.
+  - `app.py`의 `remembered()`가 `cached()` 안에서 불려서, 6시간 캐시에서 꺼낼 때는 다시 쌓지 않는다.
 
 ## 외부 API와 제약 (중요)
 - **검색광고 API** `https://api.searchad.naver.com/keywordstool`

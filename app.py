@@ -15,9 +15,10 @@ import analyzer as _an
 import config as _cf
 import naver_api as _na
 import region as _rg
+import storage as _st
 
 # 프로그램 파일이 업데이트되면 새로고침(F5)만으로 반영되도록 매번 다시 읽는다
-for _m in (_na, _cf, _rg, _an):
+for _m in (_na, _cf, _rg, _an, _st):
     importlib.reload(_m)
 
 from analyzer import discover, discover_region, keyword_detail, sat_level
@@ -302,6 +303,19 @@ with st.sidebar:
                            help="검색어에 ‘대구 동구’처럼 지역이 있으면 동네·다른 구 키워드를 함께 찾습니다.")
     max_hoods = st.slider("동네·명소 키워드 최대 개수", 10, 60, 30, step=5)
 
+# ---------------------------------------------------------------- 결과 기록 (Supabase)
+STORE_CFG = SECRETS if SECRETS.get("SUPABASE_URL") else load_env()
+
+
+def remembered(value, to_rows):
+    """새로 조회한 결과를 Supabase 에 쌓아 두고 그대로 돌려준다 (6시간 저장분을 다시 꺼낼 때는 쌓지 않음)."""
+    try:
+        _st.save(STORE_CFG, to_rows(value))
+    except Exception as e:  # 기록이 안 돼도 분석은 계속한다
+        print(f"[supabase] 기록 준비 실패: {e}")
+    return value
+
+
 # ---------------------------------------------------------------- 검색창
 st.markdown('<div class="kf-head"><b>🔑 KEYWORD FINDER</b><span>네이버 키워드 검색량 · 발행량 · 포화지수</span></div>',
             unsafe_allow_html=True)
@@ -330,7 +344,7 @@ if submitted:
     api = OpenApiClient(cid, csec, provider)
     try:
         with st.spinner(f"‘{query.strip()}’ 분석 중… (10~30초)"):
-            detail = cached("detail", (query.strip(),), lambda: keyword_detail(ad, api, query.strip()))
+            detail = cached("detail", (query.strip(),), lambda: remembered(keyword_detail(ad, api, query.strip()), _st.rows_from_detail))
     except Exception as e:
         st.error(f"오류: {type(e).__name__} {e}")
         st.stop()
@@ -422,11 +436,11 @@ with tab2:
         if st.button("🏆 황금 키워드 찾기", type="primary") or run_now:
             bar = st.progress(0.0, text="연관 키워드 수집 중…")
             try:
-                df, info = cached("disc", opts, lambda: discover(
+                df, info = cached("disc", opts, lambda: remembered(discover(
                     SearchAdClient(ad_key, ad_secret, ad_cid), OpenApiClient(cid, csec, provider),
                     detail["keyword"], deep, match, min_volume, max_keywords, count_recent,
                     progress=lambda d, t: bar.progress(d / t, text=f"발행량 조회 중… {d}/{t}"),
-                ))
+                ), lambda v: _st.rows_from_table("황금 키워드", detail["keyword"], v[0])))
             except Exception as e:
                 bar.empty()
                 st.error(f"오류: {type(e).__name__} {e}")
@@ -518,11 +532,13 @@ with tab4:
             if st.button("📍 지역 키워드 찾기", type="primary") or run_now:
                 bar = st.progress(0.0, text="지역 확인·동네 키워드 수집 중… (1~3분)")
                 try:
-                    out = cached("region", ropts, lambda: discover_region(
+                    out = cached("region", ropts, lambda: remembered(discover_region(
                         SearchAdClient(ad_key, ad_secret, ad_cid), OpenApiClient(cid, csec, provider),
                         detail["keyword"], min(min_volume, 50), max_hoods, count_recent,
                         progress=lambda d, t: bar.progress(d / t, text=f"동네 확인·발행량 조회 중… {d}/{t}"),
-                    ))
+                    ), lambda v: _st.rows_from_table(
+                        "지역 키워드", detail["keyword"], (v or {}).get("df"),
+                        region_label(v["region"]) if v and v.get("region") else None)))
                 except Exception as e:
                     bar.empty()
                     st.error(f"오류: {type(e).__name__} {e}")

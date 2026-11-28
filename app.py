@@ -307,10 +307,29 @@ with st.sidebar:
 STORE_CFG = SECRETS if SECRETS.get("SUPABASE_URL") else load_env()
 
 
+@st.cache_resource
+def _store_status() -> dict:
+    """마지막 기록 결과 (모든 사용자 공용)."""
+    return {}
+
+
+with st.sidebar:
+    if _st.is_on(STORE_CFG):
+        last = _store_status().get("last")
+        if last is None:
+            st.caption("🗄️ 결과 기록: 켜짐 · 아직 새로 기록한 결과 없음")
+        elif last[1]:
+            st.caption(f"🗄️ 결과 기록: 켜짐 · {last[0]} {last[2]} 저장됨")
+        else:
+            st.caption(f"🗄️ 결과 기록: ⚠️ {last[0]} 저장 실패 — {last[2]}")
+    else:
+        st.caption("🗄️ 결과 기록: 꺼짐 (Secrets 에 SUPABASE_URL·SUPABASE_KEY 없음)")
+
+
 def remembered(value, to_rows):
     """새로 조회한 결과를 Supabase 에 쌓아 두고 그대로 돌려준다 (6시간 저장분을 다시 꺼낼 때는 쌓지 않음)."""
     try:
-        _st.save(STORE_CFG, to_rows(value))
+        _st.save(STORE_CFG, to_rows(value), status=_store_status())
     except Exception as e:  # 기록이 안 돼도 분석은 계속한다
         print(f"[supabase] 기록 준비 실패: {e}")
     return value

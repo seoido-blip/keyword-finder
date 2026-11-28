@@ -77,25 +77,35 @@ def rows_from_table(kind: str, seed: str, df: pd.DataFrame | None, region: str |
     return out
 
 
-def _post(url: str, key: str, rows: list[dict]) -> None:
+def _post(url: str, key: str, rows: list[dict], status: dict | None = None) -> None:
+    import time
+    kind = rows[0]["kind"]
     try:
         r = requests.post(
             f"{url.rstrip('/')}/rest/v1/{TABLE}", json=rows, timeout=15,
             headers={"apikey": key, "Content-Type": "application/json", "Prefer": "return=minimal"},
         )
-        if r.status_code >= 300:
-            print(f"[supabase] 저장 실패 {r.status_code}: {r.text[:200]}")
+        ok, msg = r.status_code < 300, f"{kind} {len(rows)}건" if r.status_code < 300 else f"{r.status_code} {r.text[:150]}"
     except Exception as e:  # 저장이 안 돼도 분석 화면은 계속 동작해야 한다
-        print(f"[supabase] 저장 실패: {type(e).__name__} {e}")
+        ok, msg = False, f"{type(e).__name__} {str(e)[:150]}"
+    if not ok:
+        print(f"[supabase] 저장 실패: {msg}")
+    if status is not None:
+        kst = time.strftime("%H:%M", time.gmtime(time.time() + 9 * 3600))  # 한국 시간
+        status["last"] = (kst, ok, msg)
 
 
-def save(settings: dict, rows: list[dict], wait: bool = False) -> bool:
-    """rows 를 저장한다. 주소·키가 없거나 rows 가 비면 False."""
+def is_on(settings: dict) -> bool:
+    return bool(settings.get("SUPABASE_URL") and settings.get("SUPABASE_KEY"))
+
+
+def save(settings: dict, rows: list[dict], wait: bool = False, status: dict | None = None) -> bool:
+    """rows 를 저장한다. 주소·키가 없거나 rows 가 비면 False. status 에 마지막 결과를 적어 둔다."""
     url, key = str(settings.get("SUPABASE_URL") or ""), str(settings.get("SUPABASE_KEY") or "")
     if not (url and key and rows):
         return False
     if wait:
-        _post(url, key, rows)
+        _post(url, key, rows, status)
     else:
-        threading.Thread(target=_post, args=(url, key, rows), daemon=True).start()
+        threading.Thread(target=_post, args=(url, key, rows, status), daemon=True).start()
     return True
